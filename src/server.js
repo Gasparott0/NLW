@@ -1,8 +1,14 @@
 const express = require("express")
 const server = express()
 
+//Pegar o banco de dados
+const db = require ("./database/db")
+
 //configurar pasta publica
 server.use(express.static("public"))
+
+//Habilirar o uso do req.body na nossa aplicação
+server.use(express.urlencoded({ extended: true }))
 
 //Utilizando template engine
 const nunjucks = require("nunjucks")
@@ -21,12 +27,78 @@ server.get("/", (req, res) => {
     })
 })
 
+//Redireciona para tela de cadastro
 server.get("/create-point", (req, res) => {
+
+    //req.query: Query Strings da nossa url
+    //console.log(req.query)
+
     return res.render("create-point.html")
 })
 
+//Persistir dados no banco
+server.post("/save-point", (req, res) => {
+
+    //req.body: O corpo do nosso formulário
+    console.log(req.body)
+
+    //Inserir dados no banco de dados
+    const query = `
+                INSERT INTO places (
+                    image,
+                    name,
+                    adress,
+                    adress2,
+                    state,
+                    city,
+                    items
+                ) VALUES (?,?,?,?,?,?,?);
+    `
+    
+    const values = [
+        req.body.image,
+        req.body.name,
+        req.body.adress,
+        req.body.adress2,
+        req.body.state,
+        req.body.city,
+        req.body.items
+    ]
+
+    function afterInsertData(err){
+        if(err) {
+            console.log(err)
+            return res.render("create-point.html", {notSaved: true})
+        }
+
+        console.log("Cadastrado com sucesso")
+        console.log(this)
+        
+        return res.render("create-point.html", {saved: true})
+    }
+
+    db.run(query, values, afterInsertData)
+
+})
+
+//Visualizar pontos de coleta
 server.get("/search", (req, res) => {
-    return res.render("search-results.html")
+
+    const search = req.query.search
+
+    //Pegar os dados do banco de dados
+    db.all(`SELECT * FROM places WHERE city LIKE '%${search}%'`, function(err, rows) {
+        if(err) {
+            return console.log(err)
+        }
+
+        const total = rows.length
+
+        //Mostrar a página html com os dados do banco de dados
+        return res.render("search-results.html", { places: rows, total: total })
+
+    })
+
 })
 
 //ligar o servidor
